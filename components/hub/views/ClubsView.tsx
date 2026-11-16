@@ -30,6 +30,8 @@ interface ClubsViewProps {
   records: readonly ClubRecord[];
   selectedCategory: string;
   onSelectCategory: (category: string) => void;
+  filterQuery?: string;
+  onFilterQueryChange?: (query: string) => void;
   onOpenRecord: (ref: HubRecordRef) => void;
   onOpenSearch: (initialQuery?: string) => void;
 }
@@ -38,10 +40,15 @@ export function ClubsView({
   records,
   selectedCategory,
   onSelectCategory,
+  filterQuery: controlledFilterQuery,
+  onFilterQueryChange,
   onOpenRecord,
   onOpenSearch,
 }: ClubsViewProps) {
-  const [filterQuery, setFilterQuery] = useState("");
+  const [internalFilterQuery, setInternalFilterQuery] = useState("");
+  const filterQuery = controlledFilterQuery ?? internalFilterQuery;
+  const setFilterQuery = onFilterQueryChange ?? setInternalFilterQuery;
+
   const [sortMode, setSortMode] = useState<ClubSortMode>("category");
   const [viewMode, setViewMode] = useState<ClubViewMode>("cards");
 

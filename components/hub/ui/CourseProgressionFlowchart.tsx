@@ -6,15 +6,19 @@ import type { ProgressionStep } from "@/lib/format";
 interface CourseProgressionFlowchartProps {
   steps: readonly ProgressionStep[];
   compact?: boolean;
+  highlightQuery?: string;
 }
 
 export function CourseProgressionFlowchart({
   steps,
   compact = false,
+  highlightQuery = "",
 }: CourseProgressionFlowchartProps) {
   if (steps.length < 2) {
     return null;
   }
+
+  const normalizedHighlight = highlightQuery.trim().toLowerCase();
 
   return (
     <div
@@ -63,6 +67,13 @@ export function CourseProgressionFlowchart({
                     const isApOption = /\b(AP|Honors|Accelerated)\b/i.test(
                       option,
                     );
+                    const isMatchedOption =
+                      normalizedHighlight.length >= 2 &&
+                      (option.toLowerCase().includes(normalizedHighlight) ||
+                        (step.stageLabel ?? "")
+                          .toLowerCase()
+                          .includes(normalizedHighlight));
+
                     return (
                       <div key={option}>
                         {optIdx > 0 && (
@@ -76,9 +87,11 @@ export function CourseProgressionFlowchart({
                         )}
                         <div
                           className={
-                            isApOption
-                              ? "rounded-lg border border-gold/60 bg-gold-light/70 px-2.5 py-1.5 text-xs font-extrabold text-navy-dark"
-                              : "rounded-lg border border-slate-200/90 bg-surface px-2.5 py-1.5 text-xs font-semibold text-slate-700"
+                            isMatchedOption
+                              ? "rounded-lg border-2 border-gold bg-gold-light px-2.5 py-1.5 text-xs font-extrabold text-navy-dark ring-2 ring-gold/40"
+                              : isApOption
+                                ? "rounded-lg border border-gold/60 bg-gold-light/70 px-2.5 py-1.5 text-xs font-extrabold text-navy-dark"
+                                : "rounded-lg border border-slate-200/90 bg-surface px-2.5 py-1.5 text-xs font-semibold text-slate-700"
                           }
                         >
                           {option}

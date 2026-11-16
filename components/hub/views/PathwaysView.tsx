@@ -10,7 +10,9 @@ import {
   GraduationCap,
   Layers,
   RotateCcw,
+  Search,
   Sparkles,
+  X,
 } from "lucide-react";
 import { CategoryPill } from "@/components/hub/ui/CategoryPill";
 import { CourseProgressionFlowchart } from "@/components/hub/ui/CourseProgressionFlowchart";
@@ -39,6 +41,7 @@ export function PathwaysView({
   onOpenSearch,
 }: PathwaysViewProps) {
   const [selectedDepartment, setSelectedDepartment] = useState<string>("ALL");
+  const [filterQuery, setFilterQuery] = useState<string>("");
 
   const trackTypes = useMemo(
     () => tallyByField(records, (p) => p.Track_Type),
@@ -64,10 +67,15 @@ export function PathwaysView({
       : "ALL";
   }, [selectedDepartment, departments]);
 
+  const normalizedQuery = filterQuery.trim().toLowerCase();
   const hasActiveFilter =
-    activeTrack !== "ALL" || activeDepartment !== "ALL";
+    activeTrack !== "ALL" ||
+    activeDepartment !== "ALL" ||
+    normalizedQuery.length > 0;
 
   const filteredPathways = useMemo(() => {
+    const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
+
     return records.filter((pathway) => {
       const track = pathway.Track_Type.trim() || "Uncategorized";
       const dept = pathway.Department.trim() || "Uncategorized";
@@ -78,13 +86,31 @@ export function PathwaysView({
       if (activeDepartment !== "ALL" && dept !== activeDepartment) {
         return false;
       }
-      return true;
+
+      if (tokens.length === 0) {
+        return true;
+      }
+
+      const searchableBlob = [
+        pathway.Pathway_ID,
+        pathway.Program_Or_Course_Title,
+        pathway.Department,
+        pathway.Track_Type,
+        pathway.Grade_Levels,
+        pathway.Prerequisites_And_Eligibility,
+        pathway.Description_And_Details,
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return tokens.every((token) => searchableBlob.includes(token));
     });
-  }, [records, activeTrack, activeDepartment]);
+  }, [records, activeTrack, activeDepartment, normalizedQuery]);
 
   function handleResetFilters() {
     onSelectTrack("ALL");
     setSelectedDepartment("ALL");
+    setFilterQuery("");
   }
 
   return (
@@ -99,10 +125,10 @@ export function PathwaysView({
         onOpenSearch={() => onOpenSearch("")}
       />
 
-      {/* Department & Track Filter Bar */}
+      {/* Department, Track & Instant Search Filter Bar */}
       <section
         aria-label="Academic Pathway Filters"
-        className="space-y-3.5 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs"
+        className="no-print space-y-3.5 rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs"
       >
         {/* Primary Row: Track Type Pills */}
         <div>
@@ -227,6 +253,34 @@ export function PathwaysView({
           </div>
         </div>
 
+        {/* Instant In-Tab Course & Program Search Input */}
+        <div className="border-t border-slate-100 pt-3">
+          <div className="relative">
+            <Search
+              className="pointer-events-none absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-slate-400"
+              aria-hidden="true"
+            />
+            <input
+              type="text"
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
+              placeholder="Filter pathways, AP courses, electives, or EMCC career programs (e.g. Culinary, Welding, Psychology)..."
+              aria-label="Filter pathways, AP courses, electives, or EMCC career programs"
+              className="min-h-[42px] w-full rounded-xl border border-slate-200 bg-surface py-2 pr-10 pl-10 text-xs font-medium text-slate-900 placeholder:text-slate-400 transition focus:border-navy focus:bg-white focus:outline-none focus:ring-2 focus:ring-gold/50 sm:text-sm"
+            />
+            {filterQuery.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilterQuery("")}
+                aria-label="Clear pathway search filter"
+                className="absolute top-1/2 right-2.5 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-200/70 hover:text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+              >
+                <X className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Live Counter & Reset */}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5 text-xs">
           <div className="flex flex-wrap items-center gap-2 text-slate-600">
@@ -241,6 +295,11 @@ export function PathwaysView({
             {activeDepartment !== "ALL" && (
               <span className="rounded-full border border-navy/15 bg-surface px-2.5 py-0.5 font-semibold text-navy">
                 Dept: {activeDepartment}
+              </span>
+            )}
+            {normalizedQuery.length > 0 && (
+              <span className="rounded-full border border-navy/15 bg-surface px-2.5 py-0.5 font-semibold text-navy">
+                Filter: &ldquo;{filterQuery.trim()}&rdquo;
               </span>
             )}
           </div>
@@ -258,24 +317,38 @@ export function PathwaysView({
         </div>
       </section>
 
-      {/*Zero-Results State when Track + Department mismatch*/}
+      {/* Zero-Results State */}
       {filteredPathways.length === 0 && (
-        <div className="rounded-3xl border border-slate-200/90 bg-white p-8 text-center shadow-2xs">
-          <h2 className="text-base font-extrabold text-navy">
-            No academic pathways match both selected filters
+        <div className="rounded-3xl border border-slate-200/90 bg-white p-8 text-center shadow-2xs sm:p-12">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-navy/10 text-navy">
+            <Search className="h-6 w-6" aria-hidden="true" />
+          </div>
+          <h2 className="mt-4 text-lg font-extrabold text-navy">
+            No academic pathways match your current filter
           </h2>
-          <p className="mt-1 text-xs text-slate-600">
-            Reset the track or department filter to view all {records.length}{" "}
-            academic pathways.
+          <p className="mx-auto mt-1.5 max-w-md text-xs leading-relaxed text-slate-600 sm:text-sm">
+            Reset the pathway filters to view all {records.length} academic
+            pathways, or search across the entire Viking Hub.
           </p>
-          <button
-            type="button"
-            onClick={handleResetFilters}
-            className="mt-4 inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-navy px-4 py-2 text-xs font-bold text-white transition hover:bg-navy-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
-          >
-            <RotateCcw className="h-3.5 w-3.5 text-gold" aria-hidden="true" />
-            <span>Show All {records.length} Pathways</span>
-          </button>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-navy px-4 py-2.5 text-xs font-bold text-white transition hover:bg-navy-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+            >
+              <RotateCcw className="h-3.5 w-3.5 text-gold" aria-hidden="true" />
+              <span>Show All {records.length} Pathways</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onOpenSearch(filterQuery.trim())}
+              className="inline-flex min-h-[40px] items-center gap-2 rounded-xl border border-gold/60 bg-gold-light px-4 py-2.5 text-xs font-bold text-navy-dark transition hover:bg-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-navy" aria-hidden="true" />
+              <span>Open Global Search (⌘K)</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -294,7 +367,6 @@ export function PathwaysView({
             );
             const hasProgramBadges = parsedPrograms.items.length >= 2;
 
-            // Span full width on desktop for Acceleration Policy or multi-stage progression flowcharts
             const spanFullWidth = isAccelerationPolicy || hasFlowchart;
 
             return (
@@ -321,7 +393,6 @@ export function PathwaysView({
                 )}
 
                 <div>
-                  {/* Highlighted Banner for Acceleration Policy */}
                   {isAccelerationPolicy && (
                     <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-navy px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-gold shadow-2xs">
                       <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
@@ -372,13 +443,19 @@ export function PathwaysView({
                         <div className="mt-2 flex flex-wrap gap-1.5">
                           {parsedPrograms.items.map((item) => {
                             const isApItem = /\b(AP|Honors)\b/i.test(item);
+                            const isHighlightedBadge =
+                              normalizedQuery.length >= 2 &&
+                              item.toLowerCase().includes(normalizedQuery);
+
                             return (
                               <span
                                 key={item}
                                 className={
-                                  isApItem
-                                    ? "inline-flex items-center rounded-lg border border-gold/60 bg-gold-light px-2.5 py-1 text-xs font-bold text-navy-dark"
-                                    : "inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700"
+                                  isHighlightedBadge
+                                    ? "inline-flex items-center rounded-lg border-2 border-gold bg-gold-light px-2.5 py-1 text-xs font-extrabold text-navy-dark ring-2 ring-gold/40"
+                                    : isApItem
+                                      ? "inline-flex items-center rounded-lg border border-gold/60 bg-gold-light px-2.5 py-1 text-xs font-bold text-navy-dark"
+                                      : "inline-flex items-center rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700"
                                 }
                               >
                                 {item}
@@ -429,7 +506,10 @@ export function PathwaysView({
 
                     {hasFlowchart ? (
                       <div className="mt-3">
-                        <CourseProgressionFlowchart steps={progressionSteps} />
+                        <CourseProgressionFlowchart
+                          steps={progressionSteps}
+                          highlightQuery={normalizedQuery}
+                        />
                       </div>
                     ) : (
                       <p className="mt-1.5 text-xs font-medium leading-relaxed text-slate-700">

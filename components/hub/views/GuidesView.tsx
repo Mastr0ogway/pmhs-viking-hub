@@ -12,6 +12,7 @@ import {
   Link2,
   MapPin,
   PhoneCall,
+  Printer,
   RotateCcw,
   Search,
   Sparkles,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 import { CategoryPill } from "@/components/hub/ui/CategoryPill";
 import { GuideChecklist } from "@/components/hub/ui/GuideChecklist";
+import { PhoneLinkedText } from "@/components/hub/ui/PhoneLinkedText";
 import { SectionHeader } from "@/components/hub/ui/SectionHeader";
 import { useCopyFeedback } from "@/components/hub/ui/useCopyFeedback";
 import { parseGuideSteps, tallyByField } from "@/lib/format";
@@ -422,7 +424,7 @@ export function GuidesView({
                           Staff Contact
                         </p>
                         <p className="mt-0.5 font-semibold text-slate-800">
-                          {guide.Staff_Contact}
+                          <PhoneLinkedText text={guide.Staff_Contact} />
                         </p>
                       </div>
                     </div>
@@ -447,7 +449,7 @@ export function GuidesView({
                 </div>
 
                 {/* Card Action Footer */}
-                <div className="mt-6 flex flex-wrap items-center justify-between gap-2.5 border-t border-slate-100 pt-4">
+                <div className="no-print mt-6 flex flex-wrap items-center justify-between gap-2.5 border-t border-slate-100 pt-4">
                   {isHttp && (
                     <a
                       href={rawUrl}
@@ -464,6 +466,19 @@ export function GuidesView({
                   )}
 
                   <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      aria-label={`Print checklist for ${guide.Task_Title}`}
+                      className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-slate-200 bg-surface px-3 py-2 text-xs font-bold text-navy transition hover:border-gold hover:bg-gold-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                    >
+                      <Printer
+                        className="h-3.5 w-3.5 text-navy"
+                        aria-hidden="true"
+                      />
+                      <span>Print</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => handleCopyGuideLink(guide)}

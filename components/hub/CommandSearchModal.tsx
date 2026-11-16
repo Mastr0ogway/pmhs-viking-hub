@@ -21,6 +21,7 @@ import type { QuickChipItem } from "@/components/hub/HeroSection";
 import { CategoryPill } from "@/components/hub/ui/CategoryPill";
 import { HighlightedText } from "@/components/hub/ui/HighlightedText";
 import { Kbd } from "@/components/hub/ui/Kbd";
+import { useDialogFocusTrap } from "@/components/hub/ui/useDialogFocusTrap";
 import {
   getRecordCategory,
   getRecordId,
@@ -84,9 +85,17 @@ export function CommandSearchModal({
   pathways,
   guides,
 }: CommandSearchModalProps) {
+  const dialogRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const optionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const [activeIndex, setActiveIndex] = useState(0);
+
+  useDialogFocusTrap({
+    open,
+    dialogRef,
+    initialFocusRef: inputRef,
+    onClose,
+  });
 
   const trimmedQuery = query.trim();
 
@@ -163,27 +172,10 @@ export function CommandSearchModal({
   const activeItem = flatItems[safeActiveIndex] ?? null;
 
   useEffect(() => {
-    if (!open) return;
-    const raf = window.requestAnimationFrame(() => {
-      inputRef.current?.focus();
-    });
-    return () => window.cancelAnimationFrame(raf);
-  }, [open]);
-
-  useEffect(() => {
     if (!open || !activeItem) return;
     const el = optionRefs.current[activeItem.id];
     el?.scrollIntoView({ block: "nearest" });
   }, [activeItem, open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [open]);
 
   function handleInputKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
     if (event.key === "Escape") {
@@ -238,6 +230,7 @@ export function CommandSearchModal({
 
           {/* Modal Panel */}
           <motion.div
+            ref={dialogRef}
             initial={{ opacity: 0, scale: 0.97, y: -8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: -8 }}

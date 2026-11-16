@@ -39,6 +39,7 @@ export function HubShell({ data }: HubShellProps) {
   const [activeView, setActiveView] = useState<HubView>("overview");
   const [selectedClubCategory, setSelectedClubCategory] =
     useState<string>("ALL");
+  const [clubFilterQuery, setClubFilterQuery] = useState<string>("");
   const [selectedPathwayTrack, setSelectedPathwayTrack] =
     useState<string>("ALL");
   const [selectedGuideCategory, setSelectedGuideCategory] =
@@ -72,49 +73,63 @@ export function HubShell({ data }: HubShellProps) {
     [searchIndex],
   );
 
-  const selectView = useCallback((view: HubView) => {
-    setActiveView(view);
-    setPreviewRecord(null);
-    if (typeof window !== "undefined") {
-      const targetHash = view === "overview" ? "" : `#${view}`;
-      const nextUrl = `${window.location.pathname}${window.location.search}${targetHash}`;
-      window.history.replaceState(null, "", nextUrl);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+  const pushViewHash = useCallback((view: HubView) => {
+    if (typeof window === "undefined") return;
+    const targetHash = view === "overview" ? "" : `#${view}`;
+    const nextUrl = `${window.location.pathname}${window.location.search}${targetHash}`;
+    if (window.location.hash !== targetHash) {
+      window.history.pushState(null, "", nextUrl);
     }
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
+
+  const selectView = useCallback(
+    (view: HubView) => {
+      setActiveView(view);
+      setPreviewRecord(null);
+      pushViewHash(view);
+    },
+    [pushViewHash],
+  );
 
   const handleSelectClubCategoryFromOverview = useCallback(
     (category: string) => {
       setSelectedClubCategory(category);
       setActiveView("clubs");
       setPreviewRecord(null);
-      if (typeof window !== "undefined") {
-        const nextUrl = `${window.location.pathname}${window.location.search}#clubs`;
-        window.history.replaceState(null, "", nextUrl);
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }
+      pushViewHash("clubs");
     },
-    [],
+    [pushViewHash],
   );
 
-  const handleSelectPathwayTrackFromOverview = useCallback((track: string) => {
-    setSelectedPathwayTrack(track);
-    setActiveView("pathways");
-    setPreviewRecord(null);
-    if (typeof window !== "undefined") {
-      const nextUrl = `${window.location.pathname}${window.location.search}#pathways`;
-      window.history.replaceState(null, "", nextUrl);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }
-  }, []);
+  const handleSelectPathwayTrackFromOverview = useCallback(
+    (track: string) => {
+      setSelectedPathwayTrack(track);
+      setActiveView("pathways");
+      setPreviewRecord(null);
+      pushViewHash("pathways");
+    },
+    [pushViewHash],
+  );
 
   const handleSelectGuideCategoryFromOverview = useCallback(
     (category: string) => {
       setSelectedGuideCategory(category);
       setActiveView("guides");
       setPreviewRecord(null);
+      pushViewHash("guides");
+    },
+    [pushViewHash],
+  );
+
+  const handleFilterClubsByAdvisor = useCallback(
+    (advisorName: string) => {
+      setSelectedClubCategory("ALL");
+      setClubFilterQuery(advisorName);
+      setPreviewRecord(null);
+      setActiveView("clubs");
       if (typeof window !== "undefined") {
-        const nextUrl = `${window.location.pathname}${window.location.search}#guides`;
+        const nextUrl = `${window.location.pathname}${window.location.search}#clubs`;
         window.history.replaceState(null, "", nextUrl);
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
@@ -135,30 +150,44 @@ export function HubShell({ data }: HubShellProps) {
     setAdminModalOpen(true);
   }, []);
 
-  const handleSelectRecord = useCallback((ref: HubRecordRef) => {
-    const targetView = KIND_TO_VIEW[ref.kind];
-    setActiveView(targetView);
-    setSearchOpen(false);
-    setAdminModalOpen(false);
-    setPreviewRecord(ref);
-    if (typeof window !== "undefined") {
-      const nextUrl = `${window.location.pathname}${window.location.search}${formatRecordHash(ref)}`;
-      window.history.replaceState(null, "", nextUrl);
-    }
-  }, []);
+  const handleSelectRecord = useCallback(
+    (ref: HubRecordRef) => {
+      const targetView = KIND_TO_VIEW[ref.kind];
+      const wasDrawerAlreadyOpen = previewRecord !== null;
+
+      setActiveView(targetView);
+      setSearchOpen(false);
+      setAdminModalOpen(false);
+      setPreviewRecord(ref);
+
+      if (typeof window !== "undefined") {
+        const recordHash = formatRecordHash(ref);
+        const nextUrl = `${window.location.pathname}${window.location.search}${recordHash}`;
+        if (wasDrawerAlreadyOpen) {
+          // Switching between related records inside an already-open drawer replaces the current drawer entry
+          window.history.replaceState(null, "", nextUrl);
+        } else if (window.location.hash !== recordHash) {
+          // Opening a record from a closed drawer state pushes a history entry so mobile Back closes the drawer
+          window.history.pushState(null, "", nextUrl);
+        }
+      }
+    },
+    [previewRecord],
+  );
 
   const handleCloseDrawer = useCallback(() => {
     setPreviewRecord(null);
     if (typeof window !== "undefined") {
-      const targetHash = activeView === "overview" ? "" : `#${activeView}`;
-      const nextUrl = `${window.location.pathname}${window.location.search}${targetHash}`;
+      const baseHash = activeView === "overview" ? "" : `#${activeView}`;
+      const nextUrl = `${window.location.pathname}${window.location.search}${baseHash}`;
+      // Replace the URL hash so closing via X / Esc / backdrop does not leave a zombie drawer entry behind in history
       window.history.replaceState(null, "", nextUrl);
     }
   }, [activeView]);
 
-  // Sync initial URL hash & browser back/forward navigation (supports #view?id=RECORD_ID)
+  // Sync URL hash & browser Back/Forward navigation (supports #view?id=RECORD_ID)
   useEffect(() => {
-    function syncFromHash() {
+    function syncFromLocation() {
       const { view, recordId } = parseHubHash(window.location.hash);
 
       if (recordId) {
@@ -180,9 +209,13 @@ export function HubShell({ data }: HubShellProps) {
       }
     }
 
-    syncFromHash();
-    window.addEventListener("hashchange", syncFromHash);
-    return () => window.removeEventListener("hashchange", syncFromHash);
+    syncFromLocation();
+    window.addEventListener("hashchange", syncFromLocation);
+    window.addEventListener("popstate", syncFromLocation);
+    return () => {
+      window.removeEventListener("hashchange", syncFromLocation);
+      window.removeEventListener("popstate", syncFromLocation);
+    };
   }, [clubs, pathways, guides]);
 
   // Global keyboard shortcuts: ⌘K / Ctrl+K and "/"
@@ -234,7 +267,7 @@ export function HubShell({ data }: HubShellProps) {
         {/* Skip to Main Content Link for Keyboard Users */}
         <a
           href="#hub-panel"
-          className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-xl focus:bg-navy focus:px-4 focus:py-2 focus:text-xs focus:font-bold focus:text-gold focus:shadow-lg"
+          className="no-print sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-xl focus:bg-navy focus:px-4 focus:py-2 focus:text-xs focus:font-bold focus:text-gold focus:shadow-lg"
         >
           Skip to main content
         </a>
@@ -288,6 +321,8 @@ export function HubShell({ data }: HubShellProps) {
                 records={clubs}
                 selectedCategory={selectedClubCategory}
                 onSelectCategory={setSelectedClubCategory}
+                filterQuery={clubFilterQuery}
+                onFilterQueryChange={setClubFilterQuery}
                 onOpenRecord={handleSelectRecord}
                 onOpenSearch={(q) => openSearch(q ?? "")}
               />
@@ -316,7 +351,7 @@ export function HubShell({ data }: HubShellProps) {
         </main>
 
         {/* Institutional Footer */}
-        <footer className="mt-12 border-t border-slate-200/80 bg-white">
+        <footer className="no-print mt-12 border-t border-slate-200/80 bg-white">
           <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 font-semibold text-navy">
@@ -378,7 +413,10 @@ export function HubShell({ data }: HubShellProps) {
         {/* Shared Record Quick-Preview Slide-Over Drawer */}
         <RecordPreviewDrawer
           recordRef={previewRecord}
+          data={{ clubs, pathways, guides }}
           onClose={handleCloseDrawer}
+          onSelectRecord={handleSelectRecord}
+          onFilterClubsByAdvisor={handleFilterClubsByAdvisor}
           onOpenSearch={() => openSearch("")}
         />
 

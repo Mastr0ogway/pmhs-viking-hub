@@ -110,7 +110,7 @@ export function Navbar({
   return (
     <>
       {/* 1. Top Institutional Utility Bar */}
-      <div className="border-b border-white/10 bg-navy-dark text-xs text-white">
+      <div className="no-print border-b border-white/10 bg-navy-dark text-xs text-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-2 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2.5">
             <span className="inline-flex items-center gap-1.5 font-semibold tracking-tight text-white">
@@ -182,7 +182,7 @@ export function Navbar({
       </div>
 
       {/* 2. Sticky Glassmorphic Navigation Header */}
-      <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/85 backdrop-blur-md">
+      <header className="no-print sticky top-0 z-30 border-b border-slate-200/80 bg-white/85 backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center justify-between gap-3">
             {/* Brand Lockup */}

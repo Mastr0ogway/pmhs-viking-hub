@@ -31,3 +31,13 @@ body {
 .scrollbar-none::-webkit-scrollbar {
   display: none;
 }
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background-color: #ffffff !important;
+  }
+}

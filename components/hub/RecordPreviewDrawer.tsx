@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   AlertCircle,
+  ArrowUpRight,
   BookOpen,
   Calendar,
   Check,
@@ -18,7 +19,9 @@ import {
   Link2,
   MapPin,
   PhoneCall,
+  Printer,
   Search,
+  Sparkles,
   User,
   Users,
   X,
@@ -26,54 +29,56 @@ import {
 import { CategoryPill } from "@/components/hub/ui/CategoryPill";
 import { CourseProgressionFlowchart } from "@/components/hub/ui/CourseProgressionFlowchart";
 import { GuideChecklist } from "@/components/hub/ui/GuideChecklist";
+import { PhoneLinkedText } from "@/components/hub/ui/PhoneLinkedText";
 import { useCopyFeedback } from "@/components/hub/ui/useCopyFeedback";
+import { useDialogFocusTrap } from "@/components/hub/ui/useDialogFocusTrap";
 import {
   parseProgressionSteps,
   parseStructuredProgramList,
   parseStudentDescription,
 } from "@/lib/format";
 import {
+  extractAdvisorNames,
+  findClubsByAdvisor,
+  findRelatedRecords,
   formatRecordHash,
   getRecordCategory,
   getRecordId,
+  getRecordSubtitle,
   getRecordTitle,
   getRecordUrl,
   KIND_LABEL,
   type HubRecordRef,
 } from "@/lib/hub-records";
+import type { HubDataPayload } from "@/types/hub";
 
 interface RecordPreviewDrawerProps {
   recordRef: HubRecordRef | null;
+  data: Pick<HubDataPayload, "clubs" | "pathways" | "guides">;
   onClose: () => void;
+  onSelectRecord: (ref: HubRecordRef) => void;
+  onFilterClubsByAdvisor: (advisorName: string) => void;
   onOpenSearch: () => void;
 }
 
 export function RecordPreviewDrawer({
   recordRef,
+  data,
   onClose,
+  onSelectRecord,
+  onFilterClubsByAdvisor,
   onOpenSearch,
 }: RecordPreviewDrawerProps) {
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const { copiedKey: copiedRecordId, copy } = useCopyFeedback(2000);
 
-  useEffect(() => {
-    if (!recordRef) return;
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-      }
-    }
-
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = prevOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [recordRef, onClose]);
+  useDialogFocusTrap({
+    open: Boolean(recordRef),
+    dialogRef,
+    initialFocusRef: closeButtonRef,
+    onClose,
+  });
 
   async function handleCopyDirectLink(ref: HubRecordRef) {
     if (typeof window === "undefined") return;
@@ -99,12 +104,13 @@ export function RecordPreviewDrawer({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             onClick={onClose}
-            className="fixed inset-0 bg-navy-dark/60 backdrop-blur-xs"
+            className="no-print fixed inset-0 bg-navy-dark/60 backdrop-blur-xs"
             aria-hidden="true"
           />
 
           {/* Slide-Over Panel */}
           <motion.aside
+            ref={dialogRef}
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
@@ -114,6 +120,7 @@ export function RecordPreviewDrawer({
             {(() => {
               const currentId = getRecordId(recordRef);
               const isCopied = copiedRecordId === currentId;
+              const relatedMatches = findRelatedRecords(recordRef, data, 4);
 
               return (
                 <>
@@ -150,7 +157,7 @@ export function RecordPreviewDrawer({
                         </span>
                       </div>
 
-                      <div className="flex shrink-0 items-center gap-2">
+                      <div className="no-print flex shrink-0 items-center gap-2">
                         <button
                           type="button"
                           onClick={() => handleCopyDirectLink(recordRef)}
@@ -181,6 +188,7 @@ export function RecordPreviewDrawer({
                         </button>
 
                         <button
+                          ref={closeButtonRef}
                           type="button"
                           onClick={onClose}
                           aria-label="Close detail drawer"
@@ -220,6 +228,16 @@ export function RecordPreviewDrawer({
                         const club = recordRef.record;
                         const { cleanText, editorialNotes } =
                           parseStudentDescription(club.Description);
+                        const multiClubAdvisors = extractAdvisorNames(
+                          club.Advisor_Name,
+                        )
+                          .map((name) => ({
+                            name,
+                            totalCount: findClubsByAdvisor(name, data.clubs)
+                              .length,
+                          }))
+                          .filter((item) => item.totalCount > 1);
+
                         return (
                           <>
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -234,6 +252,30 @@ export function RecordPreviewDrawer({
                                 <p className="mt-1 text-sm font-bold text-navy">
                                   {club.Advisor_Name}
                                 </p>
+
+                                {multiClubAdvisors.length > 0 && (
+                                  <div className="no-print mt-2.5 flex flex-wrap gap-1.5 border-t border-slate-200/80 pt-2">
+                                    {multiClubAdvisors.map((adv) => (
+                                      <button
+                                        key={adv.name}
+                                        type="button"
+                                        onClick={() =>
+                                          onFilterClubsByAdvisor(adv.name)
+                                        }
+                                        className="inline-flex min-h-[28px] items-center gap-1 rounded-lg border border-gold/60 bg-gold-light px-2.5 py-1 text-[11px] font-bold text-navy-dark transition hover:bg-gold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy"
+                                      >
+                                        <span>
+                                          See all {adv.totalCount} clubs by{" "}
+                                          {adv.name}
+                                        </span>
+                                        <ArrowUpRight
+                                          className="h-3 w-3"
+                                          aria-hidden="true"
+                                        />
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
 
                               <div className="rounded-2xl border border-slate-200 bg-surface p-4">
@@ -419,7 +461,9 @@ export function RecordPreviewDrawer({
                                 <div className="mt-2.5 space-y-3">
                                   {parsedPrograms.leadSummary && (
                                     <p className="text-sm leading-relaxed text-slate-700">
-                                      {parsedPrograms.leadSummary}
+                                      <PhoneLinkedText
+                                        text={parsedPrograms.leadSummary}
+                                      />
                                     </p>
                                   )}
                                   <div className="rounded-xl border border-slate-200/80 bg-surface p-3.5">
@@ -449,7 +493,9 @@ export function RecordPreviewDrawer({
                                 </div>
                               ) : (
                                 <p className="mt-2 text-sm leading-relaxed text-slate-700 whitespace-pre-line">
-                                  {pathway.Description_And_Details}
+                                  <PhoneLinkedText
+                                    text={pathway.Description_And_Details}
+                                  />
                                 </p>
                               )}
                             </div>
@@ -514,7 +560,7 @@ export function RecordPreviewDrawer({
                                   <span>Staff Contact</span>
                                 </p>
                                 <p className="mt-1 text-sm font-bold text-navy">
-                                  {guide.Staff_Contact}
+                                  <PhoneLinkedText text={guide.Staff_Contact} />
                                 </p>
                               </div>
                             </div>
@@ -572,10 +618,63 @@ export function RecordPreviewDrawer({
                           </>
                         );
                       })()}
+
+                    {/* RELATED AT MENDON CROSS-LINKS SECTION */}
+                    {relatedMatches.length > 0 && (
+                      <section
+                        aria-label="Related PMHS Resources"
+                        className="no-print space-y-2.5 rounded-2xl border border-navy/15 bg-surface p-4"
+                      >
+                        <p className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-navy">
+                          <Sparkles
+                            className="h-3.5 w-3.5 text-gold"
+                            aria-hidden="true"
+                          />
+                          <span>Related at Mendon</span>
+                        </p>
+
+                        <div className="space-y-2">
+                          {relatedMatches.map((match) => {
+                            const matchId = getRecordId(match.ref);
+                            return (
+                              <button
+                                key={matchId}
+                                type="button"
+                                onClick={() => onSelectRecord(match.ref)}
+                                className="group flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200/90 bg-white p-3 text-left transition hover:border-gold hover:bg-gold-light/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="rounded bg-navy px-1.5 py-0.5 font-mono text-[10px] font-bold text-gold">
+                                      {KIND_LABEL[match.ref.kind]}
+                                    </span>
+                                    <span className="font-mono text-[10px] font-semibold text-slate-400">
+                                      {matchId}
+                                    </span>
+                                  </div>
+                                  <p className="mt-1 truncate text-xs font-extrabold text-navy group-hover:text-navy-light sm:text-sm">
+                                    {getRecordTitle(match.ref)}
+                                  </p>
+                                  <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                                    {match.reason} ·{" "}
+                                    {getRecordSubtitle(match.ref)}
+                                  </p>
+                                </div>
+
+                                <ArrowUpRight
+                                  className="h-4 w-4 shrink-0 text-gold transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+                                  aria-hidden="true"
+                                />
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    )}
                   </div>
 
-                  {/* Sticky Drawer Footer with Official Source Link & Direct Share */}
-                  <div className="border-t border-slate-200 bg-surface p-5">
+                  {/* Sticky Drawer Footer with Official Source Link, Print & Direct Share */}
+                  <div className="no-print border-t border-slate-200 bg-surface p-5">
                     {(() => {
                       const rawUrl = getRecordUrl(recordRef).trim();
                       const isHttp =
@@ -598,6 +697,20 @@ export function RecordPreviewDrawer({
                                   aria-hidden="true"
                                 />
                               </a>
+                            )}
+
+                            {recordRef.kind === "guide" && (
+                              <button
+                                type="button"
+                                onClick={() => window.print()}
+                                className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-xl border border-navy/20 bg-white px-3.5 py-2.5 text-xs font-bold text-navy transition hover:border-gold hover:bg-gold-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold sm:text-sm"
+                              >
+                                <Printer
+                                  className="h-4 w-4 text-navy"
+                                  aria-hidden="true"
+                                />
+                                <span>Print</span>
+                              </button>
                             )}
 
                             <button

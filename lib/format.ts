@@ -242,6 +242,67 @@ export function parseGuideSteps(rawProcess: string): ParsedGuideSteps {
   };
 }
 
+export interface PhoneTextSegment {
+  type: "text" | "phone";
+  value: string;
+  href?: string;
+}
+
+const US_PHONE_REGEX = /(?:\(\d{3}\)\s*|\b\d{3}-)\d{3}-\d{4}\b/g;
+
+/**
+ * Splits text containing US phone numbers (e.g. "585-267-1660" or "(585) 267-1660")
+ * into plain text and clickable `tel:` segments, while keeping numbers preceded by "Fax"
+ * as plain text so users do not dial a fax line.
+ */
+export function parsePhoneSegments(rawText: string): PhoneTextSegment[] {
+  if (!rawText) {
+    return [];
+  }
+
+  const segments: PhoneTextSegment[] = [];
+  let lastIndex = 0;
+
+  for (const match of rawText.matchAll(US_PHONE_REGEX)) {
+    const idx = match.index ?? 0;
+    const matchedText = match[0];
+    const prefixContext = rawText.slice(Math.max(0, idx - 10), idx);
+    const isFax = /fax\s*:?\s*$/i.test(prefixContext);
+
+    if (idx > lastIndex) {
+      segments.push({
+        type: "text",
+        value: rawText.slice(lastIndex, idx),
+      });
+    }
+
+    if (isFax) {
+      segments.push({
+        type: "text",
+        value: matchedText,
+      });
+    } else {
+      const digits = matchedText.replace(/\D/g, "");
+      segments.push({
+        type: "phone",
+        value: matchedText,
+        href: `tel:${digits}`,
+      });
+    }
+
+    lastIndex = idx + matchedText.length;
+  }
+
+  if (lastIndex < rawText.length) {
+    segments.push({
+      type: "text",
+      value: rawText.slice(lastIndex),
+    });
+  }
+
+  return segments.length > 0 ? segments : [{ type: "text", value: rawText }];
+}
+
 export function tallyByField<T>(
   records: readonly T[],
   selector: (item: T) => string,
